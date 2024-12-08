@@ -10,6 +10,6 @@ inferencer:
   device: auto # device name or "auto"
   save_path: ./
   seed: 1
-  from_pretrained: "/home/aamatosyan/DLA/neural_vocoder/saved/main_run/model_best.pth" # path to the pretrained model
+  from_pretrained: "src/best_model_weights/model_best.pth" # path to the pretrained model
   data_dir_path: null
   text_from_cli: null

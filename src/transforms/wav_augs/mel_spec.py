@@ -18,6 +18,8 @@ class MelSpectrogramConfig:
     f_max: int = 8000
     n_mels: int = 80
     power: float = 1.0
+    pad: int = 384
+    center: bool = False
 
     # value of melspectrograms if we fed a silence into `MelSpectrogram`
     pad_value: float = -11.5129251
@@ -39,7 +41,7 @@ class MelSpectrogram(nn.Module):
             f_max=config.f_max,
             n_mels=config.n_mels,
             center=False,
-            pad=384 #(config.n_fft - config.hop_length) // 2
+            pad=config.pad #(config.n_fft - config.hop_length) // 2
         )
 
         # The is no way to set power in constructor in 0.5.0 version.

@@ -85,6 +85,7 @@ class BaseDataset(Dataset):
                 "path": data_dict['path'],
                 "melspec": melspec,
             }
+            
 
             return instance_data
 

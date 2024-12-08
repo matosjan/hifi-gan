@@ -1,4 +1,5 @@
-# Automatic Speech Recognition (ASR) with PyTorch
+
+# HiFi-GAN Implementation
 
 <p align="center">
   <a href="#about">About</a> •
@@ -10,9 +11,9 @@
 
 ## About
 
-This repository contains a template for solving ASR task with PyTorch. This template branch is a part of the [HSE DLA course](https://github.com/markovka17/dla) ASR homework. Some parts of the code are missing (or do not follow the most optimal design choices...) and students are required to fill these parts themselves (as well as writing their own models, etc.).
+This repository contains my implementation of HiFi-GAN
 
-See the task assignment [here](https://github.com/markovka17/dla/tree/2024/hw1_asr).
+See the task assignment [here](https://github.com/markovka17/dla/tree/2024/hw3_nv).
 
 ## Installation
 
@@ -64,11 +65,28 @@ python3 train.py -cn=CONFIG_NAME HYDRA_CONFIG_ARGUMENTS
 
 Where `CONFIG_NAME` is a config from `src/configs` and `HYDRA_CONFIG_ARGUMENTS` are optional arguments.
 
-To run inference (evaluate the model or save predictions):
+If you want to fine-tune model with augmentations (like our best model), then you need to add `from_pretrained` parameter to trainer section in train config and specify in it the path to your checkpoint. Also you need to change config in `transforms` section to `example_only_instance_augs`.
+
+To download checkpoint run
 
 ```bash
-python3 inference.py HYDRA_CONFIG_ARGUMENTS
+python download_checkpoint.py
 ```
+
+To run inference (save predictions) on either on audio dataset or on text dataset:
+
+```bash
+python synthesize.py inferencer.save_path='<path to saving directory>' inferencer.data_dir_path='<path to data directory>' 
+```
+
+You can also run inference on a custom text:
+```bash
+python synthesize.py inferencer.text_from_cli='I love DLA' inferencer.save_path='<path to saving directory>'
+```
+The resulting `.wav` will be saved in a file named `cli_input_gen.wav`
+## How To Measure Metrics
+
+The WV-MOS will be printed out when using `synthesize.py`
 
 ## Credits
 

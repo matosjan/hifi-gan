@@ -33,6 +33,7 @@ class TTSDataset(BaseDataset):
                     
                 if len(entry) > 1:
                     data.append(entry)
+            
                 
         super().__init__(data, *args, **kwargs)
 
