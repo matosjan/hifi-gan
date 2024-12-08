@@ -1,15 +1,12 @@
 train:
-  _target_: src.datasets.LJSpeechDataset
+  _target_: src.datasets.TTSDataset
   data_dir_path: /home/aamatosyan/DLA/neural_vocoder/data/LJSpeech-1.1/wavs
   frames_to_leave: 8192
   min_audio_frames: 8192
-  limit: 2
   instance_transforms: ${transforms.instance_transforms.train}
 
 val:
-  _target_: src.datasets.LJSpeechDataset
+  _target_: src.datasets.TTSDataset
   data_dir_path: /home/aamatosyan/DLA/neural_vocoder/data/val_set
   is_train: False
   instance_transforms: ${transforms.instance_transforms.train}
-
-

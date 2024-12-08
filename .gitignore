@@ -30,6 +30,8 @@ wheels/
 #  before PyInstaller builds the exe, so as to inject date/other infos into it.
 *.manifest
 *.spec
+*.wav
+*.sbatch
 
 # Installer logs
 pip-log.txt
@@ -107,6 +109,10 @@ saved/
 wandb/
 .cometml-runs/
 outputs/
+runs/
+infer_data/
+infer_data_text/
+
 
 # editor, os cache directory
 .vscode/

@@ -1,0 +1,7 @@
+train:
+  get_mel_spectrogram: # special key for getting spectrogram
+    _target_: src.transforms.wav_augs.MelSpectrogram
+
+inference:
+  get_mel_spectrogram: # special key for getting spectrogram
+      _target_: src.transforms.wav_augs.MelSpectrogram

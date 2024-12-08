@@ -1,13 +1,15 @@
 defaults:
-  - model: baseline
-  - metrics: example
-  - datasets: example_eval # we do not want to run inference on training data
-  - dataloader: example
-  - transforms: example
+  - model: hifi_gan
+  - metrics: mos
+  - datasets: infer_dataset # we do not want to run inference on training data
+  - dataloader: infer_loader
+  - transforms: melspec_only_instance
   - _self_
 inferencer:
-  device_tensors: ["data_object", "labels"] # which tensors should be on device (ex. GPU)
+  device_tensors: ["melspec", "audio"] # which tensors should be on device (ex. GPU)
   device: auto # device name or "auto"
-  save_path: "example" # any name here, can be a dataset name
+  save_path: ./
   seed: 1
-  from_pretrained: "saved/model_best.pth" # path to the pretrained model
+  from_pretrained: "/home/aamatosyan/DLA/neural_vocoder/saved/main_run/model_best.pth" # path to the pretrained model
+  data_dir_path: null
+  text_from_cli: null

@@ -5,7 +5,7 @@ import os
 from tqdm import tqdm
 import torchaudio
 
-class InferenceDataset(BaseDataset):
+class TTSDataset(BaseDataset):
     def __init__(self, data_dir_path=None, text_from_cli=None, *args, **kwargs):
         data = []
         if data_dir_path == None and text_from_cli == None:
@@ -14,7 +14,8 @@ class InferenceDataset(BaseDataset):
         if text_from_cli != None:
             entry = {
                 'text': text_from_cli,
-                'path': f'{text_from_cli.split()[0]}.txt'
+                'path': f'cli_input_gen.wav',
+                'audio_frames': 0
             }
             data.append(entry)
         else:
@@ -28,6 +29,7 @@ class InferenceDataset(BaseDataset):
                 elif path.suffix in [".txt"]:
                     with path.open() as f:
                         entry["text"] = f.read().strip()
+                    entry["audio_frames"] = 0
                     
                 if len(entry) > 1:
                     data.append(entry)

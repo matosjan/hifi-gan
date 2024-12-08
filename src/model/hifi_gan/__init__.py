@@ -1,0 +1,1 @@
+from src.model.hifi_gan.model import HiFiGAN

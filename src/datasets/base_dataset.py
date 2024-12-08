@@ -5,8 +5,8 @@ import numpy as np
 import torch
 import torchaudio
 from torch.utils.data import Dataset
+from speechbrain.inference.TTS import Tacotron2
 
-from src.text_encoder import CTCTextEncoder
 
 logger = logging.getLogger(__name__)
 
@@ -23,20 +23,19 @@ class BaseDataset(Dataset):
     def __init__(
         self,
         index,
-        text_encoder=None,
-        target_sr=16000,
+        target_sr=22050,
         limit=None,
-        max_audio_length=None,
-        max_text_length=None,
+        is_train=True,
+        min_audio_frames=None,
         shuffle_index=False,
         instance_transforms=None,
+        frames_to_leave=None
     ):
         """
         Args:
             index (list[dict]): list, containing dict for each element of
                 the dataset. The dict has required metadata information,
                 such as label and object path.
-            text_encoder (CTCTextEncoder): text encoder.
             target_sr (int): supported sample rate.
             limit (int | None): if not None, limit the total number of elements
                 in the dataset to 'limit' elements.
@@ -49,18 +48,19 @@ class BaseDataset(Dataset):
                 tensor name.
         """
         self._assert_index_is_valid(index)
-
-        index = self._filter_records_from_dataset(
-            index, max_audio_length, max_text_length
-        )
+        self.is_train = is_train
+        if self.is_train:
+            index = self._filter_records_from_dataset(
+                index, min_audio_frames
+            )
         index = self._shuffle_and_limit_index(index, limit, shuffle_index)
         if not shuffle_index:
             index = self._sort_index(index)
 
         self._index: list[dict] = index
 
-        self.text_encoder = text_encoder
         self.target_sr = target_sr
+        self.frames_to_leave = frames_to_leave
         self.instance_transforms = instance_transforms
 
     def __getitem__(self, ind):
@@ -79,24 +79,29 @@ class BaseDataset(Dataset):
                 (a single dataset element).
         """
         data_dict = self._index[ind]
+        if 'text' in data_dict.keys():
+            melspec = self.get_mel_spectrogram_from_text(data_dict['text'])
+            instance_data = {
+                "path": data_dict['path'],
+                "melspec": melspec,
+            }
+
+            return instance_data
+
         audio_path = data_dict["path"]
         audio = self.load_audio(audio_path)
-        text = data_dict["text"]
-        text_encoded = self.text_encoder.encode(text)
+        if self.is_train:
+            start = random.randint(0,  audio.shape[-1] - self.frames_to_leave)
+            audio = audio[:, start : start + self.frames_to_leave]
 
-        spectrogram = self.get_spectrogram(audio)
+        melspec = self.get_mel_spectrogram(audio)
 
         instance_data = {
             "audio": audio,
-            "spectrogram": spectrogram,
-            "text": text,
-            "text_encoded": text_encoded,
-            "audio_path": audio_path,
+            "melspec": melspec,
+            "path": audio_path,
         }
 
-        # TODO think of how to apply wave augs before calculating spectrogram
-        # Note: you may want to preserve both audio in time domain and
-        # in time-frequency domain for logging
         instance_data = self.preprocess_data(instance_data)
 
         return instance_data
@@ -115,7 +120,7 @@ class BaseDataset(Dataset):
             audio_tensor = torchaudio.functional.resample(audio_tensor, sr, target_sr)
         return audio_tensor
 
-    def get_spectrogram(self, audio):
+    def get_mel_spectrogram(self, audio):
         """
         Special instance transform with a special key to
         get spectrogram from audio.
@@ -125,7 +130,13 @@ class BaseDataset(Dataset):
         Returns:
             spectrogram (Tensor): spectrogram for the audio.
         """
-        return self.instance_transforms["get_spectrogram"](audio)
+        return self.instance_transforms["get_mel_spectrogram"](audio)
+
+    def get_mel_spectrogram_from_text(self, text):
+        tacotron2 = Tacotron2.from_hparams(source="speechbrain/tts-tacotron2-ljspeech", savedir="tmpdir_tts", overrides={"max_decoder_steps": 10000})
+        melspec, _, _ = tacotron2.encode_text(text)
+
+        return melspec
 
     def preprocess_data(self, instance_data):
         """
@@ -143,7 +154,7 @@ class BaseDataset(Dataset):
         """
         if self.instance_transforms is not None:
             for transform_name in self.instance_transforms.keys():
-                if transform_name == "get_spectrogram":
+                if transform_name == "get_mel_spectrogram":
                     continue  # skip special key
                 instance_data[transform_name] = self.instance_transforms[
                     transform_name
@@ -153,8 +164,7 @@ class BaseDataset(Dataset):
     @staticmethod
     def _filter_records_from_dataset(
         index: list,
-        max_audio_length,
-        max_text_length,
+        min_audio_frames,
     ) -> list:
         """
         Filter some of the elements from the dataset depending on
@@ -164,43 +174,27 @@ class BaseDataset(Dataset):
             index (list[dict]): list, containing dict for each element of
                 the dataset. The dict has required metadata information,
                 such as label and object path.
-            max_audio_length (int): maximum allowed audio length.
-            max_test_length (int): maximum allowed text length.
+            min_audio_length (int): minimum allowed audio length.
         Returns:
             index (list[dict]): list, containing dict for each element of
                 the dataset that satisfied the condition. The dict has
                 required metadata information, such as label and object path.
         """
         initial_size = len(index)
-        if max_audio_length is not None:
-            exceeds_audio_length = (
-                np.array([el["audio_len"] for el in index]) >= max_audio_length
+        if min_audio_frames is not None:
+            short_audios = (
+                np.array([el["audio_frames"] for el in index]) < min_audio_frames
             )
-            _total = exceeds_audio_length.sum()
+            _total = short_audios.sum()
             logger.info(
-                f"{_total} ({_total / initial_size:.1%}) records are longer then "
-                f"{max_audio_length} seconds. Excluding them."
+                f"{_total} ({_total / initial_size:.1%}) records are shorter then "
+                f"{min_audio_frames} length. Excluding them."
             )
         else:
-            exceeds_audio_length = False
+            short_audios = False
 
         initial_size = len(index)
-        if max_text_length is not None:
-            exceeds_text_length = (
-                np.array(
-                    [len(CTCTextEncoder.normalize_text(el["text"])) for el in index]
-                )
-                >= max_text_length
-            )
-            _total = exceeds_text_length.sum()
-            logger.info(
-                f"{_total} ({_total / initial_size:.1%}) records are longer then "
-                f"{max_text_length} characters. Excluding them."
-            )
-        else:
-            exceeds_text_length = False
-
-        records_to_filter = exceeds_text_length | exceeds_audio_length
+        records_to_filter = short_audios
 
         if records_to_filter is not False and records_to_filter.any():
             _total = records_to_filter.sum()
@@ -225,15 +219,8 @@ class BaseDataset(Dataset):
         for entry in index:
             assert "path" in entry, (
                 "Each dataset item should include field 'path'" " - path to audio file."
-            )
-            assert "text" in entry, (
-                "Each dataset item should include field 'text'"
-                " - object ground-truth transcription."
-            )
-            assert "audio_len" in entry, (
-                "Each dataset item should include field 'audio_len'"
-                " - length of the audio."
-            )
+            )   
+   
 
     @staticmethod
     def _sort_index(index):
@@ -249,7 +236,7 @@ class BaseDataset(Dataset):
                 of the dataset. The dict has required metadata information,
                 such as label and object path.
         """
-        return sorted(index, key=lambda x: x["audio_len"])
+        return sorted(index, key=lambda x: x["audio_frames"])
 
     @staticmethod
     def _shuffle_and_limit_index(index, limit, shuffle_index):
